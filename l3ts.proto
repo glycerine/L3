@@ -1,0 +1,390 @@
+//
+// Copyright (C) 2011 Jason E. Aten. All rights reserved.
+//
+
+package l3ts;
+
+// external identifer/key
+//
+message key {
+    optional string  strkey  = 2;
+    repeated bytes   idbyte  = 3;
+
+    optional bytes   pbsn_target = 4 [default=""];
+    repeated string  attrib = 5;
+}
+
+//
+// protobuf serialized form of qtree node: code as data. a function, func or FUN.
+//
+message qtreepb {
+
+    optional qtreepb  _head  = 1;
+    required string   _val   = 2;
+    required string   _ty    = 3;
+    repeated qtreepb  _chld  = 4;
+
+    optional int32    _lbp   = 5;
+    optional int32    _rbp   = 6;
+
+    optional bool     _prefix  = 7 [default = false];
+    optional bool     _postfix = 8 [default = false];
+
+    optional qtreepb  _body  = 9;
+    optional string   _span  = 20;
+    optional string   _closer = 21;
+
+}
+
+
+
+ // nameval
+ //
+ // nameval allows easy encoding scalar values of (string, double, 
+ // long) and composite objects. It also allows encoding of matrices 
+ // and vectors of those. 
+ //
+ // Vectors and matrices in particular will use inames and jnames 
+ // if they have named (i,j) row and column components.
+ // 
+ message nameval {
+
+    // Type: gives the type of payload.
+    //
+    //
+    enum Type { UNSET=0; STR=1; DOU=2; LON=3; BYT=4; OBJ=5;  FUN=6; BOO=7; }
+    required Type    nvtyp = 1;
+
+    // matrices vs vectors vs scalars: the use of the 'dim' field:
+    //
+    // allows easy structuring of vectors and matrices
+    //
+    // e.g. a matrix would have dim of size 2 with dim[0]=num_rows  and dim[1]=num_cols.
+    //      a vector would have dim of size 1 with dim[0]=length_of_vector
+    //      a scalar will have dim of size 0.
+    //
+    repeated uint64  dim = 15;
+
+    enum MatrixStorageConvention { ROWMAJOR_C = 1; COLMAJOR_FORTAN = 2; }
+    optional MatrixStorageConvention matconv = 17 [default=ROWMAJOR_C]; // less frequently used so gets a tag# > 15
+
+    // payload value(s): only one of these can be used, as indicated by nvtype above.
+    // The rest *must* be empty (size 0).
+    repeated string  str = 6;
+    repeated double  dou = 7 [packed=true];
+    repeated sint64  lon = 8 [packed=true];
+    repeated bytes   byt = 9;
+    repeated object  obj = 10;
+    repeated qtreepb fun = 11;
+    repeated bool    boo = 12 [packed=true];
+
+    // annotations on the payload values.
+    repeated string  ann = 22;
+
+    // since arrays can be sparse, which indices where used (if it was a sparse array--if not then idx can and should be empty).
+    repeated sint64  idx = 13 [packed=true];
+
+    // serial number to help with inflating built in references and cyclic references.
+    optional bytes  pbsn = 14;
+
+    // optional internal names of the payload values, e.g. for named vectors of doubles
+    repeated string inames = 20; // row names for matrices, names for named vectors.
+    repeated string jnames = 21; // col names for matrices, empty for named vectors.
+ }
+
+ message object {
+
+    //  There can be an N:M relationship between keys and values, where N != M.
+    //
+    //  This allows many keys to point to the same value, and also to have
+    //  values that do not have names, just sequence. The _pbsn and _target_pbsn
+    //  link these two together in the serialized file.
+
+    repeated key      key = 1;
+    repeated nameval  nv  = 2;
+
+    optional string   objname = 3;
+    optional string   clsname = 4;
+ }
+
+
+ message timept {
+   required uint32   sec      = 1 [default=0];  // seconds since Jan. 1, 1970, i.e. from unix gettimeofday, in UTC (Greenwich) time [-00:00].
+   required uint32   nano     = 2 [default=0];  // nanoseconds since start of sec.
+ }
+
+// quick time series:
+ message qts {
+    repeated timept  tm = 1;
+    repeated double  dou = 2 [packed=true];
+ }
+
+ message geoloc {
+    optional string  geoname = 1;
+    repeated bytes   geoid = 2;
+ }
+
+ message tmplace {
+  required timept   tm    =1;
+  required geoloc   place =2;
+ }
+
+
+ message datapt {
+  repeated tmplace tmpl = 1;
+  repeated object  objs = 2;
+
+  repeated string  hash = 3; // (optional) one sha1 hash per object in objs; for integrity checks.
+ }
+
+ message timeseries {
+
+  // all tspoints are relative to the same serial_baseday.
+  repeated datapt tspoints = 1;
+
+  // serial_baseday : the offset for all timept in this timeseries. For example, 40037 for  12 Aug 2009.
+  //
+  // all the datapt in this time series start from this same day, serial_baseday, so that we don't have to repeat the day everywhere:
+  // match QuantLib's use of days since 1900. An int32 so that negative values can represent earlier points in time if really needed.
+  //
+  required  int32  serial_baseday = 2;
+
+ }
+
+
+
+ // use a fixed length data (integer, 64 bit, always 8 bytes) here so
+ // that this header message is always the same size, and we can
+ // decode it by assuming this same conventional length every time.
+ message pb_msg_header {
+    required sfixed64  npayload_bytes = 1 [default = 0];
+ }
+
+
+
+ ///////////////////////////////////
+ //
+ //    timeseries database requests and replies.
+ //
+ ///////////////////////////////////
+
+
+
+
+ //
+ // BeginEnd: specify a time-series beginning point and ending point
+ //
+ message BeginEnd {
+
+    // IncExcType:
+    //
+    //   whether the begin/end time point itself is included or not in the resulting timeseries.
+    // 
+    //   The protobuf protocol documentation specifies that default values are the
+    //   first enum defined, so we want exluded to be the first here and also be zero
+    //   so that beg_tm_included == 0 makes sense as beg_tm_included == TIMEPT_EXCLUDED.
+    //
+    enum IncExcType {  TIMEPT_EXCLUDED=0; TIMEPT_INCLUDED=1;}
+
+    //
+    // beg_tm: where to start. 
+    // If beg_tm omitted, returns everything we've got until end_tm.
+    //
+    optional timept beg_tm = 1;
+    optional IncExcType beg_tm_included = 2 [default=TIMEPT_INCLUDED];
+
+    //
+    // end_tm: where to stop
+    // If end_tm omitted, returns everything we've got since beg_tm.
+    //
+    optional timept      end_tm = 3;
+    optional IncExcType  end_tm_included = 4 [default=TIMEPT_EXCLUDED];
+
+ }
+
+ message SampleSpec {
+
+    enum SamplingType {  ALL_DATAPTS_NO_DOWNSAMPLE=0; SAMPLE_AT_SI=1; }
+    optional SamplingType  sampling = 1 [default=ALL_DATAPTS_NO_DOWNSAMPLE];
+
+    //
+    // si: sampling interval for regular samples.
+    //    Sampling interval computation may or may not be available, depending on the type (complexity) of the
+    //    time series.  Custom samplers may be required for complex time series.
+    //
+    optional timept si = 2;
+
+     // name the custom_sampler to use for sampling complex types.
+    optional string custom_sampler = 16;
+
+ }
+
+
+
+ // specific schedules or day sets (e.g. holidays) to include/exclude can be defined here.
+ message BeginEndSet {
+    repeated BeginEnd segment = 1;    
+ }
+
+ message When {
+
+    // when to start, and when to stop sampling.
+    repeated BeginEndSet  bes = 1;
+
+    repeated SampleSpec  samp_spec = 2;
+
+    // deriving a complex interval set follows three steps:
+    //
+    // 1. Start with bes (field 1 above): everything in bes is included.
+    // 2. Exclude segments in exclude_spans;
+    // 3. Include segments in include_spans;
+    // 4. Apply the samp_spec sampling to everything that remains.
+    //
+    repeated BeginEndSet exclude_spans = 17;
+    repeated BeginEndSet include_spans = 18;
+
+ }
+
+
+ //
+ // TSID is used to identify a particular timeseries, by name, sha1, or uuid. A primary key into
+ //  the timeseries data.
+ //
+ message TSID {
+    optional string   tsname = 1; // human readable name for this timeseries
+
+    repeated bytes    sha1   = 2;  // (optional) a 160-bit (20 byte) SHA1 message digest hash function;
+    repeated bytes    uuid   = 3;  // (optional) the classic (16 byte) DCE Universally Unique Identifier, aka GUID.
+ }
+
+ // Gets
+
+ //
+ // TSHead: same structure to describe the start of a timeseries on disk, and also used to request a particular time-series
+ //
+ message TSDesc {
+
+    //
+    // TSID: which timeseries to pull
+    //
+    required TSID    tsid = 1;
+
+    // specify how to sample; or even if to sample at all. Or on disk, how from does this series go from--and to.
+    repeated When    tswhen = 2;
+ }
+
+
+
+ //
+ // TSGetRequest: request a particular time-series
+ //
+ message TSGetRequest {
+
+    //
+    // tsreq_id: A request id. Allows easy matching of several outstanding requests.
+    //
+    required string tsreq_get_id = 1;
+    required TSDesc tsdesc = 2;
+ }
+
+
+ //
+ // TSGetResponse: what the timeseries database returns as a reply to a TSGetRequest.
+ //
+ message TSGetResponse {
+
+    required TSGetRequest req = 1; // which request we are satifisfying with this response.
+
+    // BeginEnd rationale:
+    //   since time-series are expected to be split over many servers, a typical single
+    //   request is expected to generate multiple replies (but maybe only one reply) from
+    //   the time series database servers.
+    //
+    // BeginEnd: specifies which segment of the request this particular ts is satisfying.
+    //
+    repeated BeginEnd    range = 2;
+
+    // the actual time series data
+    repeated timeseries ts = 3;
+ }
+
+
+
+ // Puts
+
+ // put data into the database
+ message TSPutRequest {
+    required string     tsreq_put_id = 1;
+    required TSID       tsid = 2;
+    repeated timeseries ts = 3;
+ }
+
+
+ // get back an ack of that request
+ message TSPutResponse {
+    required string     tsreq_put_id = 1;
+    required TSID       tsid = 2;
+    required BeginEnd   stored = 3;
+ }
+
+
+service TimeSeriesDatabaseService {
+  rpc GetTS (TSGetRequest) returns (TSGetResponse);
+  rpc PutTS (TSPutRequest) returns (TSPutResponse);
+}
+
+
+
+
+/////////// Foo : used to compile the demo code 
+
+message Foo {
+  optional string  text = 1;
+  repeated int32   numbers = 2;
+}
+
+
+
+
+
+
+//// l3ts::any
+
+message Any {
+
+  // One of the following will be filled in.
+
+ optional  TSDesc        _TSDesc        = 1;
+ optional  pb_msg_header _pb_msg_header = 2;
+ optional  TSID          _TSID          = 3;
+ 
+ optional  qts           _qts           = 4;
+
+ optional  nameval     _nameval         = 5;
+ optional  object      _object          = 6;
+ optional  timept      _timept          = 7;
+ optional  geoloc      _geoloc          = 8;
+ optional  tmplace     _tmplace         = 9;
+ optional  datapt      _datapt          = 10;
+ optional  timeseries  _timeseries      = 11;
+
+ // sampling, specification, and description of timeseries
+ //
+ optional  BeginEnd      _beginend        = 12;
+ optional  SampleSpec    _samplespec      = 13;
+ optional  BeginEndSet   _beginendset     = 14;
+ optional  When          _when            = 15;
+
+ // timeseries requests and responses
+ //
+ optional  TSGetRequest   _tsgetrequest   = 16;
+ optional  TSGetResponse  _tsgetresponse  = 17;
+ optional  TSPutRequest   _tsputrequest   = 18;
+ optional  TSPutResponse  _tsputresponse  = 19;
+
+ // code as data. extensible syntax nodes.
+ optional  qtreepb        _qtreepb        = 20;
+
+}
+
+

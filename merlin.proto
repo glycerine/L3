@@ -1,0 +1,70 @@
+//
+// Copyright (C) 2011 Jason E. Aten. All rights reserved.
+//
+
+package merlin;
+
+message  arg {
+ optional string k = 1;               // key
+ required sint64 v = 2 [default = 0]; // value
+ required int32  t = 3 [default = 0]; // type, flags, transfer, etc.
+}
+
+message  call {
+  required fixed64  addr = 1;
+
+  required  int32 narg = 2;
+  repeated  arg   args = 3;
+
+  optional string   name = 4;
+  optional fixed64  this = 5; // c++ style this pointer.
+  optional fixed64  exnv = 6; // D style env pointer.
+
+  // returned values
+  repeated  arg   outv = 7;
+}
+
+message jmemrec {
+
+  optional string   origpath       = 1;
+  optional string   where_srcline  = 2;
+  optional string   classname      = 3;
+
+  enum TagOrObj_en {
+    JMEM_OBJ = 0;
+    JMEM_TAG = 1;
+    JMEM_SXP = 2;
+    JMEM_LLR = 3;
+    JMEM_LNK = 4;
+  }
+
+  optional TagOrObj_en type = 4 [default = JMEM_OBJ];
+
+  optional string   owntag_srcline = 5;
+  optional fixed64  serialnum      = 6;
+  optional fixed64  membytes       = 7;
+  optional fixed64  addr           = 8;
+
+}
+
+
+
+//
+// protobuf serialized form of qtree node.
+//
+message qtreepb {
+
+    optional qtreepb  _head  = 1;
+    required string   _val   = 2;
+    required string   _ty    = 3;
+    repeated qtreepb  _chld  = 4;
+
+    required int32    _lbp   = 5;
+    required int32    _rbp   = 6;
+
+    // expansion room/binary payload.
+    optional uint64   _bysz = 7;   // number of bytes in _by
+    optional bytes    _by   = 8;   // binary bytes.
+
+}
+

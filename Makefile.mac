@@ -1,0 +1,382 @@
+
+##
+## Copyright (C) 2011 Jason E. Aten. All rights reserved.
+##
+
+include common.Makefile
+
+all: terp
+
+CPP := g++
+#CPP := nvcc --machine 64
+
+# excruciatingly slow:  -D_FFLUSH_EACH_MEMLOG
+
+# on each eval, check no damage to memory. slow.
+# -D_EVAL_LIVEO
+
+# mac tunings...
+LLVMCONFIG := /usr/local/bin/llvm-config
+# works:
+CPPFLAGS   := -fpic -gdwarf-2 -g3 -Wall -O0 -D_MACOSX  -D_JLIVECHECK -D_JTDD_TESTS_ON  -D_USE_L3_PATH -DGLIBCXX_FORCE_NEW  ${UNIV_CPP_FLAGS}
+
+# trying for nvcc compilation:
+#CPPFLAGS   := -g -G -D_MACOSX  -D_JLIVECHECK -D_JTDD_TESTS_ON  -D_USE_L3_PATH -DGLIBCXX_FORCE_NEW  ${UNIV_CPP_FLAGS}
+
+
+
+
+# -DJUDYERROR_NOTEST 
+
+#CPPFLAGS := -fpic -gdwarf-2 -g3 -Wall -std=c++0x -O0
+#LLVMCONFIG := /home/jaten/pkg/llvm28/install/bin/llvm-config
+
+
+# works on Mac, but comment out for nvcc:
+#LLVM_CPP_FLAGS := $(shell ${LLVMCONFIG} --cppflags ) -rdynamic
+LLVM_CPP_FLAGS := $(shell ${LLVMCONFIG} --cppflags )
+LLVM_LD_FLAGS := $(shell ${LLVMCONFIG} --ldflags --libs core jit native engine ) -rdynamic
+
+#LDFLAGS := -L/sw64/lib/system-openssl/lib/ ${LLVM_LD_FLAGS}
+LDFLAGS := ${LLVM_LD_FLAGS} -lcrypto  
+
+#shatest: shatest.cpp
+#	g++ -c ${CPPFLAGS}  shatest.cpp  -o shatest.o -I.
+#	g++   ./shatest.o  -o shatest -L/usr/local/lib -L/usr/local/lib  -lssl
+
+
+LLVM_FLAGS := $(shell ${LLVMCONFIG} --cppflags --ldflags --libs core jit native engine ) -rdynamic
+# core jit native engine) -rdynamic
+
+DEBUG_SEXP_OBJ := debug_sexp.o
+DEBUG_SEXP_SRC := debug_sexp.cpp
+
+OLD_HEADER := pretty_print_sexp.h
+OLD_CPP_SRC := pretty_print_sexp.cpp
+OLD_C_SRC := slisp_util.c
+
+HEADERS := terp.h autotag.h l3path.h l3obj.h serialfac.h  dv.h compiler.h quicktype.h ut.h ioprim.h objects.h tostring.h loops.h symvec.h llref.h jlmap.h dynamicscope.h  jtdd.h  tyse_tracker.h jmemlogger.h merlin.proto l3ts.proto  codepoints.h memscan.h dstaq.h l3dstaq.h  l3ts_common.h  l3link.h mq.h l3mq.h ${UNIV_CPP_HEADER} l3dd.h l3string.h lex_twopointer.h l3matrix.h l3pratt.h  qexp.h  l3xcep.h
+
+
+CSOURCES := xcep.c 
+#COBJ     := $(subst .c,.o,$(CSOURCES)) 
+#CDEP     := $(subst .c,.d,$(CSOURCES))
+COBJ  := $(CSOURCES:.c=.o)
+CDEP  := $(CSOURCES:.c=.d)
+
+
+CPPSOURCES := terp.cpp l3obj.cpp rmkdir.cpp serialfac.cpp  objects.cpp  judydup.cpp compiler.cpp  quicktype.cpp ut.cpp ioprim.cpp  tostring.cpp loops.cpp symvec.cpp llref.cpp dynamicscope.cpp  l3dstaq.cpp tyse_tracker.cpp jmemlogger.cpp dstaq.cpp l3ts_client.cpp l3ts_server.cpp  l3ts_common.cpp jlmap.cpp l3link.cpp mq.cpp l3mq.cpp ${UNIV_CPP_SRC} l3dd.cpp  l3string.cpp lex_twopointer.cpp l3matrix.cpp l3pratt.cpp  qexp.cpp  l3munch.cpp  l3xcep.cpp  l3sexpobj.cpp
+
+#CPPOBJ := $(subst .cpp,.o,$(CPPSOURCES))
+#CPPDEP := $(subst .cpp,.d,$(CPPSOURCES))
+CPPOBJ  := $(CPPSOURCES:.cpp=.o)
+CPPDEP  := $(CPPSOURCES:.cpp=.d)
+
+SOURCES := ${CSOURCES} ${CPPSOURCES}
+SRCHEAD := ${HEADERS} ${SOURCES}
+
+DEP := ${CDEP} ${CPPDEP}
+
+
+
+terp:  ${CPPOBJ} ${COBJ} merlin.o l3ts.o ${SRCHEAD}
+	${CPP} ${LDFLAGS} ${COBJ} ${CPPOBJ} merlin.o l3ts.o -o terp -lffi -lprotobuf -lzmq -luuid -L/usr/local/lib  -L/usr/local/lib /usr/local/lib/libJudy.a -lssl ${LLVM_CPP_FLAGS} -ldl -ledit -lssl -L. ${UNIV_LIBS} 
+
+
+clangi:  clangi.o
+	${CPP} ${LDFLAGS} clangi.o -o clangi -lffi -lprotobuf -lzmq -luuid -L/usr/local/lib  -L/usr/local/lib /usr/local/lib/libJudy.a -lssl ${LLVM_CPP_FLAGS} -ldl -ledit -lssl -L. ${UNIV_LIBS} 
+
+
+
+#	${CPP} ${LDFLAGS} ${COBJ} ${CPPOBJ} merlin.o l3ts.o -o terp -lffi -lprotobuf -lzmq -luuid -L/usr/local/lib -lpsexp -L/usr/local/lib /usr/local/lib/libJudy.a -lssl ${LLVM_CPP_FLAGS} -ldl -ledit -lssl -L. ${UNIV_LIBS}
+
+	#### dsymutil ./terp
+
+
+dep: ${DEP}
+
+
+
+
+#merlin.o : merlin.pb.cc	merlin.pb.h	merlin.proto
+#	protoc --cpp_out=. merlin.proto
+#	${CPP} -c ${CPPFLAGS}  merlin.pb.cc -o merlin.o -I.
+#l3ts.o: l3ts.pb.cc	l3ts.pb.h	l3ts.proto
+#	protoc --cpp_out=. l3ts.proto
+#	${CPP} -c ${CPPFLAGS}  l3ts.pb.cc -o l3ts.o -I.
+
+l3ts.o l3ts.pb.cc	l3ts.pb.h : l3ts.proto
+	protoc --cpp_out=. l3ts.proto
+	${CPP} -c ${CPPFLAGS}  l3ts.pb.cc -o l3ts.o -I.
+
+merlin.o merlin.pb.cc	merlin.pb.h	: merlin.proto
+	protoc --cpp_out=. merlin.proto
+	${CPP} -c ${CPPFLAGS}  merlin.pb.cc -o merlin.o -I.
+
+utrans.o utrans.pb.cc	utrans.pb.h	: utrans.proto
+	protoc --cpp_out=. utrans.proto
+	${CPP} -c ${CPPFLAGS}  utrans.pb.cc -o utrans.o -I.
+
+
+# include auto-generated dependencies in .d files
+#include $(CSOURCES:.c=.d) $(CPPSOURCES:.cpp=.d)
+
+#	${CPP} -c ${CPPFLAGS}  debug_sexp.cpp -o debug_sexp.o -I.
+
+manual_terp: ${SRCHEAD} ${depends}
+	protoc --cpp_out=. merlin.proto
+	protoc --cpp_out=. l3ts.proto
+	${CPP} -c ${CPPFLAGS}  l3obj.cpp -o l3obj.o -I.
+	${CPP} -c ${CPPFLAGS}  ${LLVM_CPP_FLAGS} terp.cpp -o terp.o -I. 
+	${CPP} -c ${CPPFLAGS}  tyse_tracker.cpp -o tyse_tracker.o -I.
+	${CPP} -c ${CPPFLAGS}  jmemlogger.cpp -o jmemlogger.o -I.
+	${CPP} -c ${CPPFLAGS}  ut.cpp -o ut.o -I.
+	${CPP} -c ${CPPFLAGS}  objects.cpp -o objects.o -I.
+	${CPP} -c ${CPPFLAGS}  symvec.cpp -o symvec.o -I.
+	${CPP} -c ${CPPFLAGS}  dynamicscope.cpp -o dynamicscope.o -I.
+	${CPP} -c ${CPPFLAGS}  l3dstaq.cpp -o l3dstaq.o -I.
+	${CPP} -c ${CPPFLAGS}  pretty_print_sexp.cpp -o pretty_print_sexp.o -I.
+	${CPP} -c ${CPPFLAGS}  serialfac.cpp -o serialfac.o -I. 
+	${CPP} -c ${CPPFLAGS}  ioprim.cpp -o ioprim.o -I.
+	${CPP} -c ${CPPFLAGS}  llref.cpp -o llref.o -I.
+	${CPP} -c ${CPPFLAGS}  loops.cpp -o loops.o -I.
+	${CPP} -c ${CPPFLAGS}  judydup.cpp -o judydup.o -I.
+	${CPP} -c ${CPPFLAGS}  tostring.cpp -o tostring.o -I.
+	${CPP} -c ${CPPFLAGS}  ${LLVM_CPP_FLAGS} compiler.cpp -o compiler.o -I.
+	#${CPP} -c ${CPPFLAGS}  envcoord.cpp -o envcoord.o -I. 
+	${CPP} -c ${CPPFLAGS}  rmkdir.cpp -o rmkdir.o -I. 
+	${CPP} -c ${CPPFLAGS}  slisp_util.c -o slisp_util.o -I. 
+	${CPP} -c ${CPPFLAGS}  merlin.pb.cc -o merlin.o
+	${CPP} -c ${CPPFLAGS}  quicktype.cpp -o quicktype.o -I.
+	${CPP} -c ${CPPFLAGS}  xcep.c -o xcep.o -I.
+	${CPP} ${LDFLAGS} debug_sexp.o l3obj.o pretty_print_sexp.o llref.o symvec.o xcep.o loops.o ioprim.o ut.o terp.o tostring.o envcoord.o compiler.o judydup.o rmkdir.o serialfac.o merlin.o quicktype.o slisp_util.o objects.o dynamicscope.o tyse_tracker.o jmemlogger.o -o terp -lffi -lprotobuf -lzmq -luuid -L/usr/local/lib -lsexp -L/usr/local/lib /usr/local/lib/libJudy.a -lssl ${LLVM_CPP_FLAGS} -ldl -ledit -lssl /usr/local/lib/valgrind/libcoregrind-amd64-darwin.a  ${UNIV_LIBS}
+
+	dsymutil ./terp
+
+etags: 
+	protoc --cpp_out=. merlin.proto
+	protoc --cpp_out=. l3ts.proto
+	${CPP} -c -E -I. ${CPPFLAGS}  objects.cpp > objects.cpp.E 
+	${CPP} -c -E -I. ${CPPFLAGS}  l3dstaq.cpp > l3dstaq.cpp.E  
+	${CPP} -c -E -I. ${CPPFLAGS}  dynamicscope.cpp > dynamicscope.cpp.E  
+	${CPP} -c -E -I. ${CPPFLAGS}  envcoord.cpp > envcoord.cpp.E  
+	${CPP} -c -E -I. ${CPPFLAGS}  ${LLVM_CPP_FLAGS} terp.cpp > terp.cpp.E  
+	${CPP} -c -E -I. ${CPPFLAGS}  loops.cpp > loops.cpp.E 
+	${CPP} -c -E -I. ${CPPFLAGS}  l3obj.cpp > l3obj.cpp.E 
+	${CPP} -c -E -I. ${CPPFLAGS}  llref.cpp > llref.cpp.E 
+	${CPP} -c -E -I. ${CPPFLAGS}  judydup.cpp > judydup.cpp.E 
+	${CPP} -c -E -I. ${CPPFLAGS}  symvec.cpp > symvec.cpp.E 
+	${CPP} -c -E -I. ${CPPFLAGS}  ut.cpp > ut.cpp.E 
+	${CPP} -c -E -I. ${CPPFLAGS}  tostring.cpp > tostring.cpp.E 
+	${CPP} -c -E -I. ${CPPFLAGS}  ioprim.cpp > ioprim.cpp.E 
+	${CPP} -c -E -I. ${CPPFLAGS}  ${LLVM_CPP_FLAGS} compiler.cpp > compiler.cpp.E 
+	${CPP} -c -E -I. ${CPPFLAGS}  envcoord.cpp > envcoord.cpp.E  
+	${CPP} -c -E -I. ${CPPFLAGS}  rmkdir.cpp > rmkdir.cpp.E  
+	${CPP} -c -E -I. ${CPPFLAGS}  slisp_util.c > slisp_util.c.E  
+	${CPP} -c -E -I. ${CPPFLAGS}  serialfac.cpp > serialfac.cpp.E  
+	${CPP} -c -E -I. ${CPPFLAGS}  quicktype.cpp > quicktype.cpp.E 
+	${CPP} -c -E -I. ${CPPFLAGS}  xcep.c > xcep.c.E 
+
+
+
+anno: annotdefun.cpp
+	${CPP} ${CPPFLAGS} annotdefun.cpp -o anno -lm -L/usr/local/lib/  -lsexp
+
+l3obj:
+	#gcc -gdwarf-2 -g3 -Wall -std=c99 test_l3obj.c
+	#./djpp autotag.dj
+	protoc --cpp_out=. merlin.proto
+	${CPP} -c ${CPPFLAGS}  test_l3obj.cpp -o test_l3obj.o
+	${CPP} -c ${CPPFLAGS}  xcep.c -o xcep.o
+	${CPP} -c ${CPPFLAGS}  merlin.pb.cc -o merlin.o
+	${CPP} test_l3obj.o xcep.o merlin.o -o test_l3obj -lffi -lprotobuf -lzmq -luuid -lrt
+	./test_l3obj
+
+
+xcep:
+	${CPP} -c ${CPPFLAGS} xcep.c -o xcep.o
+	${CPP} -c ${CPPFLAGS} xcep_demo.cpp -o xcep_demo.o
+	${CPP} xcep_demo.o xcep.o -o xcep_demo
+
+
+strongref:
+	gcc -g -c strongref.c -o strongref.o
+	gcc -g -c ctest.c -o ctest.o
+	gcc ctest.o  strongref.o -o ctest
+	${CPP} -g -c cpptest.cpp -o cpptest.o
+	${CPP} cpptest.o  strongref.o -o cpptest
+	
+
+clean:
+	rm -f *.o ctest cpptest *~ anno test_l3obj terp
+
+test:
+	#echo "=============== begin C test ============="
+	./ctest;
+	#echo "=============== done with C test ============="
+	echo
+	#echo "=============== begin C++ test ============="
+	./cpptest
+	#echo "=============== done with C++ test ============="
+
+
+
+
+.cpp.o: 
+	${CPP} -c ${CPPFLAGS} ${LLVM_CPP_FLAGS} $< -o $@ -I.
+
+.c.o:
+	${CPP} -c ${CPPFLAGS} ${LLVM_CPP_FLAGS} $< -o $@ -I.
+
+
+# dependency .d file (.d are actually Makefiles themselves) generation
+# using pattern rules
+
+%.d: %.c
+	mkdir -p .deps ; \
+	$(CPP) -M $(CFLAGS) $(CPPFLAGS) ${LLVM_CPP_FLAGS}  $< > $@.$$$$;                  \
+	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	rm -f $@.$$$$
+
+
+%.d: %.cpp
+	$(CPP) -M $(CFLAGS) $(CPPFLAGS) ${LLVM_CPP_FLAGS}  $< > $@.$$$$;                  \
+	sed 's,\($*\)\.o[ :]*,\1.o  $@ : ,g' < $@.$$$$ > $@; \
+	rm -f $@.$$$$
+
+
+
+judysldemo: judysldemo.cpp
+	${CPP}   -fpic -gdwarf-2 -g3 -Wall -O0 -D_MACOSX  judysldemo.cpp /usr/local/lib/libJudy.a -o judysldemo -I.
+
+contin: continuations_sexpr_example.cpp
+	${CPP}   -fpic -gdwarf-2 -g3 -Wall -O0 -D_MACOSX continuations_sexpr_example.cpp -o contin  -lsexp
+
+testjtdd: testjtdd.cpp
+	${CPP} ${CPPFLAGS} -fpic -gdwarf-2 -g3 -Wall -O0 -D_MACOSX testjtdd.cpp -o testjtdd
+
+
+dfsc: dfs_create.cpp jtdd.h
+	${CPP} -c ${CPPFLAGS}  quicktype.cpp -o quicktype.o -I.
+	${CPP} ${CPPFLAGS} -fpic -gdwarf-2 -g3 -Wall -O0 -D_MACOSX dfs_create.cpp -o dfsc /usr/local/lib/libJudy.a quicktype.o
+
+
+
+test_dstaq: test_dstaq.cpp dstaq.h jlmap.h symvec.h quicktype.h tyse.h tyse_tracker.h tyse_tracker.cpp jmemlogger.cpp jmemlogger.h quicktype.cpp
+	${CPP} -c ${CPPFLAGS}  sermon.cpp -o sermon.o -I.
+	${CPP} -c ${CPPFLAGS}  jmemlogger.cpp -o jmemlogger.o -I.
+	${CPP} -c ${CPPFLAGS}  tyse_tracker.cpp -o tyse_tracker.o -I.
+	${CPP} -c ${CPPFLAGS}  quicktype.cpp -o quicktype.o -I.
+	${CPP} -c ${CPPFLAGS}  test_dstaq.cpp -o test_dstaq.o -I.
+	${CPP}   ${CPPFLAGS} test_dstaq.o sermon.o /usr/local/lib/libJudy.a tyse_tracker.o jmemlogger.o quicktype.o  -o test_dstaq -I. -L. ${UNIV_LIBS}
+
+
+test_dstaq_vg:
+	valgrind  --leak-check=full  --show-reachable=yes --suppressions=valgrind.supressions.mac  -v  ./test_dstaq
+
+
+# ignores -v request to print suppressions???
+#	valgrind  -v --leak-check=yes  --suppressions=valgrind.supressions.mac  --log-file=vglog.%p.test_dstaq.valgrind.leaks ./test_dstaq
+#	cat $(shell ls -t1 | grep _test_dstaq.valgrind.leaks | head -1)
+
+
+
+test_dstaq_gensup:
+	valgrind  --leak-check=full  --suppressions=valgrind.supressions.mac --gen-suppressions=all  --show-reachable=yes --log-file=vglog.%p.test_dstaq.valgrind_generated_suppressions  ./test_dstaq
+
+
+#valgrind  --leak-check=yes  --suppressions=valgrind.supressions.mac  ./test_dstaq 
+#valgrind  --leak-check=yes  --suppressions=valgrind.supressions.mac -v ./test_dstaq 
+#various options: valgrind  --leak-check=full --show-reachable=yes --gen-suppressions=yes --suppressions=valgrind.supressions -v ./test_dstaq
+
+# --suppressions=baseline.start.stop.31july2011.suppressions.mac <<< hiding real leaks.
+# --gen-suppressions=all
+# --db-attach=yes
+
+
+# this is the test for the editline leaks... can we get them cleaned up now?
+test_terp_vg:
+	valgrind  --num-callers=20 --leak-check=full  --show-reachable=yes  --suppressions=valgrind.supressions.mac  --gen-suppressions=all --log-file=vglog.%p.terp.valgrind.leaks  ./terp -e 'uu'
+
+#dsymutil terp
+
+# generated wrong files anyway:
+#	echo "see file $(shell ls -t1| grep vglog | grep terp.valgrind.leaks | head -1) for leak check."
+#	tail -100 $(shell ls -t1| grep vglog | grep terp.valgrind.leaks | head -1)
+
+
+#	valgrind  --leak-check=yes  --suppressions=valgrind.supressions.mac --suppressions=baseline.start.stop.31july2011.suppressions.mac --log-file=vglog.%p.terp.valgrind.leaks ./terp -e '(loud)'
+
+
+# too much output in the compilation buffer of terp_vg:
+#	valgrind  --leak-check=full  --show-reachable=yes --suppressions=valgrind.supressions.mac  -v  ./terp  < /bin/echo "loud"
+
+
+#	valgrind  --leak-check=yes  --suppressions=valgrind.supressions.mac --suppressions=baseline.start.stop.31july2011.suppressions.mac --log-file=vglog.%p.terp.valgrind.leaks ./terp
+#	cat $(shell ls -t1 | grep .valgrind.leaks | head -1)
+
+
+
+
+gensup:
+	valgrind  --leak-check=full  --suppressions=valgrind.supressions.mac  --gen-suppressions=all  --log-file=vglog.%p.terp.valgrind_generated_suppressions  ./terp -e '(quiet)'
+
+terp_debug_vg:
+	valgrind  --db-attach=yes --leak-check=yes  --suppressions=valgrind.supressions.mac  ./terp -e '(quiet)'
+
+#	valgrind  --db-attach=yes --leak-check=yes  --suppressions=valgrind.supressions.mac  ./terp -e '(quiet)'
+
+
+test_terp_gdb:
+	valgrind  --leak-check=full  --show-reachable=yes  --suppressions=valgrind.supressions.mac  --log-file=vglog.%p.terp.valgrind.leaks --db-attach=yes  ./terp -e '(quiet)'
+
+test_terp:
+	./terp -e '(so "test_terp_running") (q)' # was giving unhandled exception -6.
+
+
+debugsexp:
+	valgrind  --leak-check=full  --show-reachable=yes  --suppressions=valgrind.supressions.mac  --log-file=vglog.%p.terp.valgrind.leaks  ./terp --debug-sexp
+
+
+# refresh the process memmory map
+vmmap:
+	vmmap > vmmap.terp.out
+
+remake:
+	make clean; make; cd psexp; make clean ; make ; cd .. ; make
+
+#l3ts:  l3ts_main.cpp l3ts.proto l3ts_client.cpp l3ts_server.cpp l3ts_main.o l3ts_client.o l3ts_server.o
+l3ts_driver:  l3ts.pb.h l3ts.pb.cc l3ts_main.o l3ts_client.o l3ts_server.o
+	protoc --cpp_out=. l3ts.proto
+	${CPP} -c ${CPPFLAGS}  l3ts_main.cpp -o l3ts_main.o -I.
+	${CPP} -c ${CPPFLAGS}  l3ts_client.cpp -o l3ts_client.o -I.
+	${CPP} -c ${CPPFLAGS}  l3ts_server.cpp -o l3ts_server.o -I.
+	${CPP} -g -c l3ts.pb.cc -o l3ts.pb.o
+	${CPP} l3ts_main.o l3ts.pb.o  -o l3ts_driver -lffi  -lprotobuf -lzmq -luuid -L/usr/local/lib -L/usr/local/lib -lpthread /usr/local/lib/libJudy.a -lssl -ldl -ledit
+	${CPP} -g l3ts_server.o  l3ts.pb.o -o l3ts_server -lzmq $L -lpthread -lprotobuf
+	${CPP} -g l3ts_client.o  l3ts.pb.o -o l3ts_client -lzmq $L -lpthread -lprotobuf
+
+
+DSTAQ_TESTER := dstaq_tester
+
+${DSTAQ_TESTER}: test_dstaq.o l3obj.o l3ts.o merlin.o xcep.o rmkdir.o serialfac.o  objects.o envcoord.o judydup.o compiler.o  quicktype.o ut.o ioprim.o  tostring.o loops.o symvec.o llref.o dynamicscope.o  pretty_print_sexp.o l3dstaq.o tyse_tracker.o jmemlogger.o sermon.o dstaq.o l3ts_client.o l3ts_server.o  l3ts_common.o ${HEADERS}
+	${CPP} -D_NOMAIN_  -c -fpic -gdwarf-2 -g3 -Wall -O0 -D_MACOSX  -D_JLIVECHECK -D_JTDD_TESTS_ON  -D_USE_L3_PATH -DGLIBCXX_FORCE_NEW -I/usr/local/include  -D_DEBUG -D_GNU_SOURCE -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -rdynamic terp.cpp -o  terp_for_test_dstaq.o -I.
+	${CPP}   ${LDFLAGS}  -D_NOMAIN_  test_dstaq.o   -o ${DSTAQ_TESTER}  -lffi -lprotobuf -lzmq -luuid -L/usr/local/lib  -L/usr/local/lib /usr/local/lib/libJudy.a -lssl ${LLVM_CPP_FLAGS} -ldl -ledit -lssl -L. ${UNIV_LIBS}  ./terp_for_test_dstaq.o l3obj.o xcep.o rmkdir.o serialfac.o  objects.o envcoord.o judydup.o compiler.o  quicktype.o ut.o ioprim.o  tostring.o loops.o symvec.o llref.o dynamicscope.o  pretty_print_sexp.o l3dstaq.o tyse_tracker.o jmemlogger.o sermon.o dstaq.o l3ts_client.o l3ts_server.o  l3ts_common.o l3ts.o merlin.o
+
+lex: lex_twopointer.o ${COBJ} ${CPPOBJ} merlin.o l3ts.o
+	${CPP} -D_NOMAIN_  -c -fpic -gdwarf-2 -g3 -Wall -O0 -D_MACOSX  -D_JLIVECHECK -D_JTDD_TESTS_ON  -D_USE_L3_PATH -DGLIBCXX_FORCE_NEW -I/usr/local/include  -D_DEBUG -D_GNU_SOURCE -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -rdynamic terp.cpp -o  terp_for_lex.o -I.
+	${CPP}  -D_LEX_MAIN_  -c -fpic -gdwarf-2 -g3 -Wall -O0 -D_MACOSX  -D_JLIVECHECK -D_JTDD_TESTS_ON  -D_USE_L3_PATH -DGLIBCXX_FORCE_NEW -I/usr/local/include  -D_DEBUG -D_GNU_SOURCE -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -rdynamic lex_twopointer.cpp -o  lex_twopointer_main.o -I.
+	${CPP}   ${LDFLAGS} lex_twopointer_main.o    -o lex -lffi -lprotobuf -lzmq -luuid -L/usr/local/lib  -L/usr/local/lib /usr/local/lib/libJudy.a -lssl ${LLVM_CPP_FLAGS} -ldl -ledit -lssl -L. ${UNIV_LIBS}  ./terp_for_lex.o l3obj.o xcep.o rmkdir.o serialfac.o  objects.o envcoord.o judydup.o compiler.o  quicktype.o ut.o ioprim.o  tostring.o loops.o symvec.o llref.o dynamicscope.o  pretty_print_sexp.o l3dstaq.o tyse_tracker.o jmemlogger.o sermon.o dstaq.o l3ts_client.o l3ts_server.o  l3ts_common.o l3ts.o merlin.o mq.o l3mq.o l3dd.o l3link.o l3string.o l3matrix.o
+
+
+
+#	${CPP} -c ${CPPFLAGS} ${LLVM_CPP_FLAGS} lex_and_load.cpp -o lex_and_load.o -I.
+
+#-lffi -lprotobuf -lzmq -luuid -L/usr/local/lib  -L/usr/local/lib /usr/local/lib/libJudy.a -lssl ${LLVM_CPP_FLAGS} -ldl -ledit -lssl -L. ${UNIV_LIBS} 
+
+
+test_qexp: test_qexp.o qexp.o test_qexp.cpp qexp.cpp qexp.h
+	${CPP} -D_NOMAIN_  -c -fpic -gdwarf-2 -g3 -Wall -O0 -D_MACOSX  -D_JLIVECHECK -D_JTDD_TESTS_ON  -D_USE_L3_PATH -DGLIBCXX_FORCE_NEW -I/usr/local/include  -D_DEBUG -D_GNU_SOURCE -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -rdynamic test_qexp.cpp   -o  test_qexp.o -I. -I${FASTFORMAT_ROOT}/include -I${STLSOFT}/include
+	${CPP} -D_NOMAIN_  -c -fpic -gdwarf-2 -g3 -Wall -O0 -D_MACOSX  -D_JLIVECHECK -D_JTDD_TESTS_ON  -D_USE_L3_PATH -DGLIBCXX_FORCE_NEW -I/usr/local/include  -D_DEBUG -D_GNU_SOURCE -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS -rdynamic qexp.cpp   -o  qexp.o -I.  -I${FASTFORMAT_ROOT}/include -I${STLSOFT}/include
+	${CPP}   ${LDFLAGS}  -D_NOMAIN_  test_qexp.o  qexp.o -o test_qexp  -lffi -lprotobuf -lzmq -luuid -L/usr/local/lib  -L/usr/local/lib /usr/local/lib/libJudy.a -lssl ${LLVM_CPP_FLAGS} -ldl -ledit -lssl -L. ${UNIV_LIBS}   -I${FASTFORMAT_ROOT}/include -I${STLSOFT}/include
+
