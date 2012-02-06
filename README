@@ -1,0 +1,8 @@
+L3: experiments in aggressive garbage collection and Pratt-parser based interpreter.
+
+
+
+compilation/build notes:
+
+ Originally prototypes LLVM links with llvm-2.8; later versions probably won't work.
+
