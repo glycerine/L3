@@ -1,6 +1,16 @@
 L3: experiments in aggressive and efficient garbage collection; and in Pratt-parser based interpreter implementation.
 
 
+Infix notation is parsed by default, using a Pratt parser. See the file newpassing.l3 for the
+currently working unit tests.  
+
+Prefix notation (Lisp/Scheme style) is also available using the ($functionname arg1 arg2 ...) syntax of starting forms with '($'.
+
+; To run the interpreter: ./terp 
+; To start the unit tests within terp: uu
+
+
+
 
 compilation/build notes:
 
