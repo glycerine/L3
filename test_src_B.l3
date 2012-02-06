@@ -1,0 +1,5 @@
+($= accum ($p accum "b1 "))
+($so "    test_src_B running. about to src test_src_C")
+($src test_src_C.l3)
+($so "    test_src_B done.")
+($= accum ($p accum "b0 "))

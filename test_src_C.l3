@@ -1,0 +1,7 @@
+($= accum ($p accum "c1 "))
+($so "        test_src_C running.")
+
+($= accum ($p accum "center "))
+
+($so "        test_src_C done.")
+($= accum ($p accum "c0 "))
