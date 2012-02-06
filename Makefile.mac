@@ -65,7 +65,7 @@ COBJ  := $(CSOURCES:.c=.o)
 CDEP  := $(CSOURCES:.c=.d)
 
 
-CPPSOURCES := terp.cpp l3obj.cpp rmkdir.cpp serialfac.cpp  objects.cpp  judydup.cpp compiler.cpp  quicktype.cpp ut.cpp ioprim.cpp  tostring.cpp loops.cpp symvec.cpp llref.cpp dynamicscope.cpp  l3dstaq.cpp tyse_tracker.cpp jmemlogger.cpp dstaq.cpp l3ts_client.cpp l3ts_server.cpp  l3ts_common.cpp jlmap.cpp l3link.cpp mq.cpp l3mq.cpp ${UNIV_CPP_SRC} l3dd.cpp  l3string.cpp lex_twopointer.cpp l3matrix.cpp l3pratt.cpp  qexp.cpp  l3munch.cpp  l3xcep.cpp  l3sexpobj.cpp
+CPPSOURCES := terp.cpp l3obj.cpp rmkdir.cpp serialfac.cpp  objects.cpp  judydup.cpp  quicktype.cpp ut.cpp ioprim.cpp  tostring.cpp loops.cpp symvec.cpp llref.cpp dynamicscope.cpp  l3dstaq.cpp tyse_tracker.cpp jmemlogger.cpp dstaq.cpp l3ts_client.cpp l3ts_server.cpp  l3ts_common.cpp jlmap.cpp l3link.cpp mq.cpp l3mq.cpp ${UNIV_CPP_SRC} l3dd.cpp  l3string.cpp lex_twopointer.cpp l3matrix.cpp l3pratt.cpp  qexp.cpp  l3munch.cpp  l3xcep.cpp  l3sexpobj.cpp
 
 #CPPOBJ := $(subst .cpp,.o,$(CPPSOURCES))
 #CPPDEP := $(subst .cpp,.d,$(CPPSOURCES))
