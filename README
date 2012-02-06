@@ -4,5 +4,9 @@ L3: experiments in aggressive garbage collection and Pratt-parser based interpre
 
 compilation/build notes:
 
- Originally prototypes LLVM links with llvm-2.8; later versions probably won't work.
+ Originally prototyped the LLVM links with llvm-2.8; later versions of LLVM (2.9, 3.0, etc) probably won't work.
+ The LLVM stuff can be omitted (deleted); although we got to initialization, the rest of it isn't implemented/used
+ in the current working interpreter.
+
+
 
