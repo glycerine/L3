@@ -89,7 +89,7 @@ SRCHEAD := ${HEADERS} ${SOURCES}
 DEP = ${CDEP} ${CPPDEP}
 
 
-terp:  ${CPPOBJ} ${COBJ} merlin.o l3ts.o
+terp:  merlin.pb.h l3ts.pb.h ${CPPOBJ} ${COBJ} merlin.o l3ts.o
 	g++ ${LDFLAGS} ${COBJ} ${CPPOBJ} merlin.o l3ts.o  -o terp -lffi -lprotobuf -lzmq -luuid -lrt -L/usr/local/lib  -L/usr/local/lib /usr/local/lib/libJudy.a -lssl ${LLVM_FLAGS} -ldl -ledit  ${UNIV_LIBS}
 	#### dsymutil ./terp
 
