@@ -79,7 +79,7 @@ DEP := ${CDEP} ${CPPDEP}
 
 
 
-terp:  ${CPPOBJ} ${COBJ} merlin.o l3ts.o ${SRCHEAD}
+terp:  merlin.pb.h l3ts.pb.h ${CPPOBJ} ${COBJ} merlin.o l3ts.o ${SRCHEAD}
 	${CPP} ${LDFLAGS} ${COBJ} ${CPPOBJ} merlin.o l3ts.o -o terp -lffi -lprotobuf -lzmq -luuid -L/usr/local/lib  -L/usr/local/lib /usr/local/lib/libJudy.a -lssl ${LLVM_CPP_FLAGS} -ldl -ledit -lssl -L. ${UNIV_LIBS} 
 
 
