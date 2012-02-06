@@ -1,0 +1,132 @@
+#!/bin/bash
+exec /usr/bin/R --vanilla -q --slave -e "source(file=pipe(\"tail -n +3 $0\"))" --args $@
+#
+
+pp=function(...) paste(sep="",...)
+
+#env.extra.tsub.args=Sys.getenv("")
+
+argv = commandArgs(trailingOnly = TRUE)
+
+#print(pp("argv is: ",argv))
+
+lastlog=system(pp("ls -Ft|grep memlog_|head -1"),intern=T)
+
+
+if (length(argv) && argv > 0) {
+  checkme = argv[1]
+   if (!file.exists(checkme)) {
+      stop(pp("bad memlog file to check specified on command line: ",checkme))
+   }   
+   lastlog = checkme
+}
+
+print(pp("checking ",lastlog))
+
+a=readLines(pp(lastlog))
+
+blank=(a=="")
+
+b=a[!blank]
+
+#raw=sapply(strsplit(b,"[ ]+"),function(x) x[2])
+
+# just match on serial nums!!!
+bsn = b[grep("@serialnum",b)]
+sn = line2sn  = as.numeric(sapply(strsplit(bsn,"@serialnum:",fixed=T),function(x) x[2]))
+
+sn.set = unique(sort(sn))
+
+if (length(sn.set)==0) {
+   cat(pp("sn.set was empty: no @serailnum entries found in ",lastlog,"\n"))
+   quit(save="no");
+}
+
+w.m = w.malloc = grep("777777",bsn)
+w.f = w.free   = grep("888888",bsn)
+
+sn.m = sn[w.malloc]
+sn.f = sn[w.free]
+
+if (any(duplicated(sn.m))) {
+  print("duplicated serialnumbers in jmalloc detected: very bad problem!")
+  print(sn.m[duplicated(sn.m)])
+}
+
+if (any(duplicated(sn.f))) {
+  print("duplicated serialnumbers in jfree detected: very bad problem!")
+  print(sn.f[duplicated(sn.f)])
+}
+
+#INVAR: we have at most 2 instances of any given serial number, at most one free, at most one malloc.
+
+matched = intersect(sn.m, sn.f)
+free.only = setdiff(sn.f, sn.m)
+malloc.only = setdiff(sn.m, sn.f)
+
+w.free.only = c()
+if (length(free.only)) {
+  w.free.only = match(free.only,sn)
+}
+
+w.malloc.only = c()
+if (length(malloc.only)) {
+  w.malloc.only = match(malloc.only,sn)
+}
+
+######
+
+w.match.m = match(matched, sn)
+
+sn.no.m = sn
+sn.no.m[w.match.m]=NA
+
+w.match.f = match(matched, sn.no.m)
+
+#############
+
+d=data.frame(bsn[w.match.m],bsn[w.match.f])
+colnames(d)=c("jmalloc","jfree")
+
+# getting too long...omit the match-up for now
+show.matchup = F
+if (show.matchup) {
+   cat("\n\n\ oooooooooo    list of matched jfrees/jmalloc   ooooooo \n")
+   options(width=160)
+   print(d)
+}
+
+if (length(w.malloc.only)) {
+  cat("\n\n\n ************** list of MEMORY LEAKS **********\n")
+  options(width=70)
+  print(bsn[w.malloc.only])
+} else {
+  cat("\n\n\n ************** NO MEMORY LEAKS OBSERVED **********\n")
+}
+
+if (length(w.free.only)) {
+  cat("\n\n ************** list of UNPAIRED FREEs **********\n")
+  options(width=70)
+  print(bsn[w.free.only])
+} else {
+  cat("\n\n ************** NO UNPAIRED FREEs OBSERVED **********\n")
+}
+
+
+
+################## check that all serialnumbers were accounted for.
+
+x=max(sn)
+
+gap=setdiff(1:x,sn.set)
+
+if (length(gap)) {
+
+  cat("\n\n\n ************** GAPS NOTED IN SERIALNUMBERS!!! --> MEMORY LEAKS??? **********\n")
+  cat("These sn are unaccounted for:\n");
+  print(gap)
+} else {
+
+  cat(pp("\n\nno gaps seen in serial numbers 1 ... ",x, "\n"))
+
+}
