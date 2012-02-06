@@ -15,8 +15,7 @@ Prefix notation (Lisp/Scheme style) is also available using the ($functionname a
 compilation/build notes:
 
  Originally prototyped the LLVM links with llvm-2.8; later versions of LLVM (2.9, 3.0, etc) probably won't work.
- The LLVM stuff can be omitted (deleted); although we got to initialization, the rest of it isn't implemented/used
- in the current working interpreter.
+ The LLVM stuff in compiler.cpp can be omitted (it is commented out of the Makefile.mac at the moment).
 
 
 
